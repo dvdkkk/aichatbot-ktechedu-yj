@@ -66,37 +66,56 @@ export const ConsultationForm: React.FC = () => {
     fetchIp();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!isAgreed) {
       alert("개인정보 수집 및 이용에 동의해야 합니다.");
       return;
     }
-    setStatus("SUBMITTING");
-    
+
     const form = e.currentTarget;
     const data = new FormData(form);
-    
+
+    // InputHaven 폼 ID 설정
+    data.set('_form_id', 'f8f9dfb901d73629441280708a818628');
+
+    // 기존 폼 필드 항목 값 유지 및 InputHaven 기본 필드(name, message) 호환 매핑
+    const nameVal = data.get('이름')?.toString() || '';
+    const ageVal = data.get('나이')?.toString() || '';
+    const phoneVal = data.get('연락처')?.toString() || '';
+    const purposeVal = data.get('교육목적')?.toString() || '';
+    const contentVal = data.get('문의내용')?.toString() || '';
+
+    data.set('name', nameVal);
+    const formattedMessage = [
+      `[AI기반 인공지능 챗봇 개발 상담 신청]`,
+      `- 이름: ${nameVal}`,
+      `- 나이: ${ageVal}`,
+      `- 연락처: ${phoneVal}`,
+      `- 교육목적: ${purposeVal}`,
+      contentVal ? `- 문의내용: ${contentVal}` : '',
+      ipAddress ? `- 접속 IP: ${ipAddress}` : ''
+    ].filter(Boolean).join('\n');
+    data.set('message', formattedMessage);
+
+    // 1. 낙관적 UI (Optimistic UI): 서버 응답 대기 없이 즉시 완료 화면 전환 (0.1초 체감)
+    setStatus("SUCCESS");
+    form.reset();
+
+    // 2. 백그라운드 전송 및 전송 보장 (keepalive: true로 창 닫힘/페이지 이동 시에도 전송 유지)
     try {
-      // 요청하신 데이터 수집용 Formspree 엔드포인트 변경
-      const response = await fetch("https://formspree.io/f/mkovwjgj", {
+      fetch("https://inputhaven.com/api/v1/submit", {
         method: "POST",
         body: data,
+        keepalive: true,
         headers: {
           'Accept': 'application/json'
         }
+      }).catch((error) => {
+        console.error('백그라운드 상담 데이터 전송 실패:', error);
       });
-      
-      if (response.ok) {
-        setStatus("SUCCESS");
-        form.reset();
-      } else {
-        setStatus("ERROR");
-        alert("전송 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
-      }
     } catch (error) {
-      setStatus("ERROR");
-      alert("네트워크 오류가 발생했습니다.");
+      console.error('상담 신청 전송 요청 실패:', error);
     }
   };
 
@@ -155,8 +174,14 @@ export const ConsultationForm: React.FC = () => {
                       <button onClick={() => setStatus("IDLE")} className="mt-6 text-xs text-gray-500 underline">다시 작성하기</button>
                   </div>
               ) : (
-                  <form onSubmit={handleSubmit} className="space-y-2 md:space-y-3">
-                  {/* IP 주소 및 메타데이터 */}
+                  <form 
+                    action="https://inputhaven.com/api/v1/submit" 
+                    method="POST" 
+                    onSubmit={handleSubmit} 
+                    className="space-y-2 md:space-y-3"
+                  >
+                  {/* InputHaven Form ID 및 접속 메타데이터 */}
+                  <input type="hidden" name="_form_id" value="f8f9dfb901d73629441280708a818628" />
                   <input type="hidden" name="user_ip" value={ipAddress} />
                   <input type="hidden" name="_subject" value="[신규 상담 신청] AI기반 인공지능 챗봇 개발" />
 
